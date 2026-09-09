@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mi Medicación — Seguimiento</title>
+<style>
+:root{
+  --bg:#f5f7fb; --card:#fff; --text:#172033; --muted:#6b7280;
+  --primary:#4f46e5; --primary-soft:#eef2ff; --green:#16a34a;
+  --red:#dc2626; --border:#e5e7eb; --shadow:0 8px 30px rgba(15,23,42,.07);
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
+.container{max-width:1050px;margin:auto;padding:28px 18px 50px}
+header{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:25px}
+h1{font-size:28px;margin:0 0 5px}.subtitle{color:var(--muted);margin:0}
+button{border:0;border-radius:12px;padding:11px 16px;font-weight:700;cursor:pointer}
+.primary{background:var(--primary);color:#fff}.secondary{background:#fff;border:1px solid var(--border);color:var(--text)}
+.grid{display:grid;grid-template-columns:1.4fr .8fr;gap:18px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:20px;box-shadow:var(--shadow)}
+.card h2{font-size:18px;margin:0 0 16px}
+.today{display:flex;justify-content:space-between;align-items:center;background:var(--primary-soft);padding:17px;border-radius:15px;margin-bottom:12px}
+.med-name{font-size:20px;font-weight:800}.dose{color:var(--muted);margin-top:3px}
+.status{font-size:13px;font-weight:800;padding:7px 10px;border-radius:999px;background:#fff}
+.status.taken{color:var(--green)}.status.pending{color:#b45309}
+.actions{display:flex;gap:8px;margin-top:12px}
+.actions button{flex:1}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat{padding:16px;background:#fafafa;border:1px solid var(--border);border-radius:14px}
+.stat strong{font-size:25px;display:block}.stat span{color:var(--muted);font-size:13px}
+.calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:7px}
+.day{height:42px;border-radius:10px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:13px;color:#6b7280}
+.day.taken{background:#dcfce7;color:#166534;font-weight:800}.day.missed{background:#fee2e2;color:#991b1b;font-weight:800}.day.today{outline:2px solid var(--primary);outline-offset:1px;background:#eef2ff;color:#3730a3}
+.weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:7px;margin-bottom:7px}.weekday{text-align:center;font-size:11px;color:var(--muted);font-weight:800}
+form{display:grid;gap:12px}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+label{font-size:13px;font-weight:700;color:#374151}input,select{width:100%;padding:12px;border:1px solid var(--border);border-radius:11px;margin-top:6px;font:inherit}
+.history{display:grid;gap:8px}.history-item{display:flex;justify-content:space-between;align-items:center;padding:12px;border-bottom:1px solid var(--border)}
+.history-item:last-child{border-bottom:0}.empty{color:var(--muted);font-size:14px}
+.modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;padding:18px}.modal.open{display:flex}.modal-box{background:#fff;border-radius:18px;padding:22px;max-width:480px;width:100%}
+footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px}
+@media(max-width:760px){.grid{grid-template-columns:1fr}header{align-items:flex-start;flex-direction:column}.row{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="container">
+<header>
+  <div><h1>💊 Mi medicación</h1><p class="subtitle">Llevá un registro simple de tus tomas.</p></div>
+  <button class="primary" onclick="openModal()">⚙ Configurar medicamento</button>
+</header>
+
+<div class="grid">
+<main>
+<section class="card">
+<h2>Hoy</h2>
+<div id="todayList"></div>
+</section>
+
+<section class="card" style="margin-top:18px">
+<h2>Resumen</h2>
+<div class="stats">
+  <div class="stat"><strong id="takenCount">0</strong><span>Tomas registradas</span></div>
+  <div class="stat"><strong id="streak">0</strong><span>Días consecutivos</span></div>
+  <div class="stat"><strong id="adherence">0%</strong><span>Cumplimiento</span></div>
+</div>
+</section>
+
+<section class="card" style="margin-top:18px">
+<h2>Historial</h2>
+<div class="weekdays"><div class="weekday">L</div><div class="weekday">M</div><div class="weekday">X</div><div class="weekday">J</div><div class="weekday">V</div><div class="weekday">S</div><div class="weekday">D</div></div>
+<div class="calendar" id="calendar"></div>
+</section>
+</main>
+
+<aside>
+<section class="card">
+<h2>Últimas tomas</h2>
+<div class="history" id="history"></div>
+</section>
+<section class="card" style="margin-top:18px">
+<h2>Configuración actual</h2>
+<div id="configSummary" class="empty"></div>
+</section>
+</aside>
+</div>
+<footer>Los datos se guardan localmente en este dispositivo.</footer>
+</div>
+
+<div class="modal" id="modal">
+<div class="modal-box">
+<h2 style="margin-top:0">Configurar medicamento</h2>
+<form onsubmit="saveConfig(event)">
+<label>Nombre del medicamento<input id="medName" required placeholder="Ej. Medicamento"></label>
+<div class="row">
+<label>Dosis<input id="dose" placeholder="Ej. 1 comprimido"></label>
+<label>Hora<input id="time" type="time" required></label>
+</div>
+<label>Frecuencia
+<select id="frequency"><option value="daily">Todos los días</option><option value="weekdays">Lunes a viernes</option></select>
+</label>
+<div class="actions">
+<button type="button" class="secondary" onclick="closeModal()">Cancelar</button>
+<button class="primary">Guardar</button>
+</div>
+</form>
+</div>
+</div>
+
+<script>
+const defaultConfig={name:"Mi medicamento",dose:"1 toma",time:"09:00",frequency:"daily"};
+let config=JSON.parse(localStorage.getItem("medConfig")||"null")||defaultConfig;
+let logs=JSON.parse(localStorage.getItem("medLogs")||"{}");
+
+function key(d=new Date()){return d.toISOString().slice(0,10)}
+function formatDate(s){return new Date(s+"T12:00:00").toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric"})}
+function save(){localStorage.setItem("medConfig",JSON.stringify(config));localStorage.setItem("medLogs",JSON.stringify(logs))}
+function isScheduled(d){
+  if(config.frequency==="daily") return true;
+  const day=d.getDay(); return day>=1&&day<=5;
+}
+function render(){
+  const today=key();
+  const taken=!!logs[today];
+  document.getElementById("todayList").innerHTML=`
+    <div class="today">
+      <div><div class="med-name">${esc(config.name)}</div><div class="dose">${esc(config.dose)} · ${config.time}</div></div>
+      <div class="status ${taken?'taken':'pending'}">${taken?'✓ Tomado':'Pendiente'}</div>
+    </div>
+    <div class="actions">
+      ${taken
+        ? `<button class="secondary" onclick="undoToday()">Desmarcar toma</button>`
+        : `<button class="primary" onclick="markTaken()">✓ Marcar como tomada</button>`}
+    </div>`;
+
+  const entries=Object.keys(logs).sort().reverse().slice(0,7);
+  document.getElementById("history").innerHTML=entries.length?entries.map(d=>`
+    <div class="history-item"><span>${formatDate(d)}</span><strong style="color:var(--green)">✓ Tomado</strong></div>`).join("")
+    : `<div class="empty">Todavía no hay tomas registradas.</div>`;
+
+  let total=0, scheduled=0;
+  for(let i=0;i<30;i++){let d=new Date();d.setDate(d.getDate()-i);if(isScheduled(d)){scheduled++;if(logs[key(d)])total++;}}
+  document.getElementById("takenCount").textContent=Object.keys(logs).length;
+  document.getElementById("adherence").textContent=(scheduled?Math.round(total/scheduled*100):0)+"%";
+  let s=0; for(let i=0;i<365;i++){let d=new Date();d.setDate(d.getDate()-i);if(!isScheduled(d))continue;if(logs[key(d)])s++;else break;}
+  document.getElementById("streak").textContent=s;
+  document.getElementById("configSummary").innerHTML=`<strong>${esc(config.name)}</strong><br>${esc(config.dose)}<br>Todos los ${config.frequency==="daily"?"días":"días hábiles"} a las ${config.time}`;
+  renderCalendar();
+}
+function renderCalendar(){
+  const cal=document.getElementById("calendar"); cal.innerHTML="";
+  const now=new Date(); now.setHours(12,0,0,0);
+  const start=new Date(now); start.setDate(start.getDate()-41);
+  for(let i=0;i<42;i++){
+    const d=new Date(start); d.setDate(start.getDate()+i);
+    const k=key(d), el=document.createElement("div"); el.className="day";
+    if(logs[k]) el.classList.add("taken"); else if(d<now && isScheduled(d)) el.classList.add("missed");
+    if(k===key(now)) el.classList.add("today");
+    el.textContent=d.getDate();
+    el.title=`${formatDate(k)} — ${logs[k]?"Tomado":isScheduled(d)?"No registrado":"No programado"}`;
+    cal.appendChild(el);
+  }
+}
+function markTaken(){logs[key()]=Date.now();save();render()}
+function undoToday(){delete logs[key()];save();render()}
+function openModal(){document.getElementById("medName").value=config.name;document.getElementById("dose").value=config.dose;document.getElementById("time").value=config.time;document.getElementById("frequency").value=config.frequency;document.getElementById("modal").classList.add("open")}
+function closeModal(){document.getElementById("modal").classList.remove("open")}
+function saveConfig(e){e.preventDefault();config={name:medName.value,dose:dose.value||"1 toma",time:time.value,frequency:frequency.value};save();closeModal();render()}
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+render();
+</script>
+</body>
+</html>
